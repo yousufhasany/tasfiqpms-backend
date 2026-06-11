@@ -1,25 +1,9 @@
 const cloudinary = require('../config/cloudinary');
 
-function requireCloudinary() {
-  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-    throw new Error('Cloudinary credentials are not configured');
-  }
-}
-
 exports.uploadFile = async (file, folder = 'tasfiq') => {
-  requireCloudinary();
-
-  const b64 = file.buffer.toString('base64');
-  const dataUri = `data:${file.mimetype};base64,${b64}`;
-
-  const result = await cloudinary.uploader.upload(dataUri, {
-    folder,
-    resource_type: 'raw'
-  });
-
+  // Store file directly in MongoDB as binary data
   return {
-    url: result.secure_url,
-    publicId: result.public_id,
+    data: file.buffer,
     originalName: file.originalname,
     mimeType: file.mimetype,
     size: file.size,
@@ -28,13 +12,8 @@ exports.uploadFile = async (file, folder = 'tasfiq') => {
 };
 
 exports.deleteFile = async (publicId) => {
-  if (!publicId) return;
-  requireCloudinary();
-  try {
-    await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
-  } catch (err) {
-    console.error('Cloudinary delete failed:', err.message);
-  }
+  // MongoDB stores files as binary data, no external cleanup needed
+  return;
 };
 
 exports.saveDocumentRecord = async (Document, { tenant, property, type, fileMeta }) => {

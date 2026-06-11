@@ -156,10 +156,7 @@ exports.deleteProperty = async (req, res) => {
     if (property.tenant) {
       const tenant = await Tenant.findById(property.tenant);
       if (tenant) {
-        if (tenant.nidDocument?.publicId) await deleteFile(tenant.nidDocument.publicId);
-        for (const doc of tenant.documents || []) {
-          if (doc.publicId) await deleteFile(doc.publicId);
-        }
+        // Files are stored in MongoDB, no need to delete from Cloudinary
         await Document.deleteMany({ tenant: tenant._id });
         await tenant.deleteOne();
       }
