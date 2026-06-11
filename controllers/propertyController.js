@@ -36,16 +36,35 @@ exports.getProperty = async (req, res) => {
 
 exports.createProperty = async (req, res) => {
   try {
+    console.log('\n=== CREATE PROPERTY REQUEST ===');
+    console.log('Body received:', JSON.stringify(req.body));
+    console.log('User ID:', req.userId);
+    
     const { propertyName, location, monthlyRent } = req.body;
+    
+    if (!propertyName || !location || !monthlyRent) {
+      console.log('VALIDATION FAILED - Missing fields:', { propertyName, location, monthlyRent });
+      return res.status(400).json({ msg: 'Missing required fields' });
+    }
+    
+    console.log('Creating property with:', { propertyName, location, monthlyRent: Number(monthlyRent) });
+    
     const property = await Property.create({
       propertyName,
       location,
       monthlyRent: Number(monthlyRent),
       status: 'Available'
     });
+    
+    console.log('SUCCESS - Property created:', { id: property._id, name: property.propertyName });
+    console.log('=== END CREATE PROPERTY ===\n');
+    
     res.status(201).json(property);
   } catch (err) {
-    res.status(400).json({ msg: err.message });
+    console.error('ERROR - Failed to create property:', err.message);
+    console.log('Full error:', err);
+    console.log('=== END CREATE PROPERTY (ERROR) ===\n');
+    res.status(500).json({ msg: err.message });
   }
 };
 
