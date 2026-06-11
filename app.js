@@ -5,6 +5,8 @@ const connectDB = require('./config/db');
 
 const app = express();
 
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 const allowedOrigins = [
   process.env.CLIENT_URL,
   'http://localhost:5173',
