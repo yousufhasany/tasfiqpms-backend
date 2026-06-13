@@ -7,7 +7,7 @@ const auth = require('../middleware/auth');
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, role } = req.body;
   if (!email || !password) return res.status(400).json({ msg: 'Please provide email and password' });
   try {
     let user = await User.findOne({ email });
@@ -16,11 +16,19 @@ router.post('/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashed = await bcrypt.hash(password, salt);
 
-    user = new User({ name, email, password: hashed });
+    // Only allow valid roles; default to 'admin' if not specified
+    const allowedRoles = ['admin', 'office'];
+    const assignedRole = allowedRoles.includes(role) ? role : 'admin';
+
+    user = new User({ name, email, password: hashed, role: assignedRole });
     await user.save();
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'changeme', { expiresIn: '7d' });
-    res.json({ token });
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET || 'changeme',
+      { expiresIn: '7d' }
+    );
+    res.json({ token, role: user.role });
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });
   }
@@ -37,8 +45,13 @@ router.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'changeme', { expiresIn: '7d' });
-    res.json({ token });
+    // Embed role in JWT for fast, DB-free role checks
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET || 'changeme',
+      { expiresIn: '7d' }
+    );
+    res.json({ token, role: user.role });
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });
   }

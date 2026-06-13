@@ -46,6 +46,10 @@ app.use('/api/tenants', require('./routes/tenants'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/documents', require('./routes/documents'));
+app.use('/api/office-transactions', require('./routes/officeTransactions'));
+app.use('/api/bank-transactions', require('./routes/bankTransactions'));
+app.use('/api/office-projects', require('./routes/officeProjects'));
+app.use('/api/settings', require('./routes/settings'));
 
 app.use((err, req, res, next) => {
   if (err.message?.includes('PDF') || err.code === 'LIMIT_FILE_SIZE') {
