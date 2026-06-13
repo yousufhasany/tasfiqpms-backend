@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { requireRole } = require('../middleware/auth');
+const requireRole = require('../middleware/requireRole');
 const ctrl = require('../controllers/officeProjectController');
 
 // Both admin and office can view and manage projects
