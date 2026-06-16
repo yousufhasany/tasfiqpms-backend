@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { requireRole } = require('../middleware/auth');
+const requireRole = require('../middleware/requireRole');
 const settingsController = require('../controllers/settingsController');
 
 // GET /api/settings — accessible to all authenticated users (navbar needs it)
