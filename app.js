@@ -50,6 +50,13 @@ app.use('/api/office-transactions', require('./routes/officeTransactions'));
 app.use('/api/bank-transactions', require('./routes/bankTransactions'));
 app.use('/api/office-projects', require('./routes/officeProjects'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/transaction-requests', require('./routes/transactionRequests'));
+app.use('/api/bank-accounts', require('./routes/bankAccounts'));
+app.use('/api/fund-sources', require('./routes/fundSources'));
+app.use('/api/project-expenses', require('./routes/projectExpenses'));
+app.use('/api/reports', require('./routes/reports'));
+
 
 app.use((err, req, res, next) => {
   if (err.message?.includes('PDF') || err.code === 'LIMIT_FILE_SIZE') {

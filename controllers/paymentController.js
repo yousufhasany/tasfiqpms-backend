@@ -20,7 +20,7 @@ exports.getPayments = async (req, res) => {
 
 exports.createPayment = async (req, res) => {
   try {
-    const { property, tenant, amount, paymentDate, notes } = req.body;
+    const { property, tenant, amount, paymentDate, rentMonth, notes } = req.body;
 
     const prop = await Property.findById(property);
     if (!prop) return res.status(404).json({ msg: 'Property not found' });
@@ -33,6 +33,7 @@ exports.createPayment = async (req, res) => {
       tenant,
       amount: Number(amount),
       paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+      rentMonth: rentMonth || new Date().toISOString().slice(0, 7),
       notes: notes || ''
     });
 
@@ -45,12 +46,13 @@ exports.createPayment = async (req, res) => {
 
 exports.updatePayment = async (req, res) => {
   try {
-    const { amount, paymentDate, notes } = req.body;
+    const { amount, paymentDate, rentMonth, notes } = req.body;
     const payment = await Payment.findById(req.params.id);
     if (!payment) return res.status(404).json({ msg: 'Payment not found' });
 
     if (amount !== undefined) payment.amount = Number(amount);
     if (paymentDate !== undefined) payment.paymentDate = new Date(paymentDate);
+    if (rentMonth !== undefined) payment.rentMonth = rentMonth;
     if (notes !== undefined) payment.notes = notes;
 
     await payment.save();

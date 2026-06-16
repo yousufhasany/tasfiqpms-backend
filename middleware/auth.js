@@ -13,10 +13,21 @@ module.exports = function (req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'changeme');
     req.userId = decoded.id;
-    console.log('Auth success - userId:', req.userId);
+    req.userRole = decoded.role; // Attach user role to request
+    console.log('Auth success - userId:', req.userId, 'role:', req.userRole);
     next();
   } catch (err) {
     console.log('Auth failed: Invalid token -', err.message);
     res.status(401).json({ msg: 'Token is not valid' });
   }
+};
+
+module.exports.requireRole = function (...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.userRole || !allowedRoles.includes(req.userRole)) {
+      console.log(`Auth failed: Role '${req.userRole}' not allowed (requires: ${allowedRoles.join(', ')})`);
+      return res.status(403).json({ msg: 'Access denied: insufficient permissions' });
+    }
+    next();
+  };
 };

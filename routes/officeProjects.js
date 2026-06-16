@@ -4,13 +4,16 @@ const auth = require('../middleware/auth');
 const { requireRole } = require('../middleware/auth');
 const ctrl = require('../controllers/officeProjectController');
 
-// Both admin and office can view and manage projects
+// View routes — accessible to all authenticated roles, filtered in controller
 router.get('/', auth, ctrl.getAll);
 router.get('/:id', auth, ctrl.getOne);
-router.post('/', auth, requireRole('admin', 'office'), ctrl.create);
-router.put('/:id', auth, requireRole('admin', 'office'), ctrl.update);
 
-// Both admin and office can delete (cascades to all transactions in the project)
-router.delete('/:id', auth, requireRole('admin', 'office'), ctrl.remove);
+// Admin-only CRUD actions
+router.post('/', auth, requireRole('admin'), ctrl.create);
+router.put('/:id', auth, requireRole('admin'), ctrl.update);
+router.delete('/:id', auth, requireRole('admin'), ctrl.remove);
+
+// Progress updates — accessible to Admin and Manager
+router.post('/:id/updates', auth, requireRole('admin', 'manager'), ctrl.addUpdate);
 
 module.exports = router;

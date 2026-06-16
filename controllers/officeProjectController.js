@@ -5,8 +5,14 @@ const BankTransaction = require('../models/BankTransaction');
 // GET /api/office-projects
 exports.getAll = async (req, res) => {
   try {
-    const projects = await OfficeProject.find()
+    const filter = {};
+    if (req.userRole === 'manager') {
+      filter.manager = req.userId;
+    }
+
+    const projects = await OfficeProject.find(filter)
       .populate('createdBy', 'name email')
+      .populate('manager', 'name email')
       .sort({ createdAt: -1 });
 
     const projectIds = projects.map(p => p._id);
@@ -69,8 +75,16 @@ exports.getAll = async (req, res) => {
 exports.getOne = async (req, res) => {
   try {
     const project = await OfficeProject.findById(req.params.id)
-      .populate('createdBy', 'name email');
+      .populate('createdBy', 'name email')
+      .populate('manager', 'name email')
+      .populate('updates.updatedBy', 'name email');
     if (!project) return res.status(404).json({ msg: 'Project not found' });
+    
+    // Security check for managers
+    if (req.userRole === 'manager' && (!project.manager || project.manager._id.toString() !== req.userId)) {
+      return res.status(403).json({ msg: 'Access denied: not your assigned project' });
+    }
+    
     res.json(project);
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });
@@ -80,17 +94,21 @@ exports.getOne = async (req, res) => {
 // POST /api/office-projects
 exports.create = async (req, res) => {
   try {
-    const { name, description, status } = req.body;
+    const { name, description, status, startDate, manager } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ msg: 'Project name is required' });
 
     const project = await OfficeProject.create({
       name: name.trim(),
       description: description || '',
+      startDate: startDate ? new Date(startDate) : new Date(),
       status: status || 'active',
+      manager: manager || null,
       createdBy: req.userId || null
     });
 
-    const populated = await OfficeProject.findById(project._id).populate('createdBy', 'name email');
+    const populated = await OfficeProject.findById(project._id)
+      .populate('createdBy', 'name email')
+      .populate('manager', 'name email');
     res.status(201).json(populated);
   } catch (err) {
     res.status(400).json({ msg: err.message });
@@ -100,16 +118,21 @@ exports.create = async (req, res) => {
 // PUT /api/office-projects/:id
 exports.update = async (req, res) => {
   try {
-    const { name, description, status } = req.body;
+    const { name, description, status, startDate, manager } = req.body;
     const project = await OfficeProject.findById(req.params.id);
     if (!project) return res.status(404).json({ msg: 'Project not found' });
 
     if (name !== undefined) project.name = name.trim();
     if (description !== undefined) project.description = description;
     if (status !== undefined) project.status = status;
+    if (startDate !== undefined) project.startDate = startDate ? new Date(startDate) : project.startDate;
+    if (manager !== undefined) project.manager = manager || null;
 
     await project.save();
-    const populated = await OfficeProject.findById(project._id).populate('createdBy', 'name email');
+    const populated = await OfficeProject.findById(project._id)
+      .populate('createdBy', 'name email')
+      .populate('manager', 'name email')
+      .populate('updates.updatedBy', 'name email');
     res.json(populated);
   } catch (err) {
     res.status(400).json({ msg: err.message });
@@ -130,5 +153,44 @@ exports.remove = async (req, res) => {
     res.json({ msg: 'Project and all its transactions deleted' });
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });
+  }
+};
+
+// POST /api/office-projects/:id/updates
+exports.addUpdate = async (req, res) => {
+  try {
+    const { description, progress } = req.body;
+    if (!description || !description.trim()) {
+      return res.status(400).json({ msg: 'Progress update description is required' });
+    }
+
+    const project = await OfficeProject.findById(req.params.id);
+    if (!project) return res.status(404).json({ msg: 'Project not found' });
+
+    // Validate permission (only admin or the assigned manager can update progress)
+    if (req.userRole === 'manager' && (!project.manager || project.manager.toString() !== req.userId)) {
+      return res.status(403).json({ msg: 'Access denied: not your assigned project' });
+    }
+
+    const updateProgress = progress !== undefined ? Math.min(Math.max(Number(progress), 0), 100) : project.progress;
+    
+    project.updates.push({
+      description: description.trim(),
+      progress: updateProgress,
+      date: new Date(),
+      updatedBy: req.userId
+    });
+
+    project.progress = updateProgress;
+    await project.save();
+
+    const populated = await OfficeProject.findById(project._id)
+      .populate('createdBy', 'name email')
+      .populate('manager', 'name email')
+      .populate('updates.updatedBy', 'name email');
+      
+    res.status(201).json(populated);
+  } catch (err) {
+    res.status(400).json({ msg: err.message });
   }
 };

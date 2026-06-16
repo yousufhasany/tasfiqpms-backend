@@ -9,11 +9,35 @@ const PAYMENT_SORT = { paymentDate: -1, createdAt: -1 };
 exports.getProperties = async (req, res) => {
   try {
     const filter = {};
-    if (req.query.status) filter.status = req.query.status;
+    const reqStatus = req.query.status;
+
+    if (reqStatus === 'Rented' || reqStatus === 'Unpaid') {
+      filter.status = 'Rented';
+    } else if (reqStatus) {
+      filter.status = reqStatus;
+    }
+
     const properties = await Property.find(filter)
       .populate('tenant')
       .sort({ createdAt: -1 });
-    res.json(properties);
+
+    const currentYearMonth = new Date().toISOString().slice(0, 7);
+    const paymentsThisMonth = await Payment.find({ rentMonth: currentYearMonth });
+    const paidPropertyIds = new Set(paymentsThisMonth.map(p => p.property.toString()));
+
+    let result = properties.map(p => {
+      const obj = p.toObject();
+      if (obj.status === 'Rented' && !paidPropertyIds.has(obj._id.toString())) {
+        obj.status = 'Unpaid';
+      }
+      return obj;
+    });
+
+    if (reqStatus === 'Unpaid') {
+      result = result.filter(p => p.status === 'Unpaid');
+    }
+
+    res.json(result);
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });
   }
@@ -28,7 +52,16 @@ exports.getProperty = async (req, res) => {
       .populate('tenant')
       .sort(PAYMENT_SORT);
 
-    res.json({ property, payments });
+    const obj = property.toObject();
+    if (obj.status === 'Rented') {
+      const currentYearMonth = new Date().toISOString().slice(0, 7);
+      const paidThisMonth = payments.some(p => p.rentMonth === currentYearMonth);
+      if (!paidThisMonth) {
+        obj.status = 'Unpaid';
+      }
+    }
+
+    res.json({ property: obj, payments });
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });
   }

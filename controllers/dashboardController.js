@@ -68,3 +68,56 @@ exports.getStats = async (req, res) => {
     res.status(500).json({ msg: 'Server error' });
   }
 };
+
+exports.getOfficeSummary = async (req, res) => {
+  try {
+    const BankAccount = require('../models/BankAccount');
+    const CashTransaction = require('../models/CashTransaction');
+    const Loan = require('../models/Loan');
+    const OfficeTransaction = require('../models/OfficeTransaction');
+
+    const [bankAccounts, cashAgg, loans, officeTxnSummary] = await Promise.all([
+      BankAccount.find(),
+      CashTransaction.aggregate([
+        { $group: { _id: null, balance: { $sum: '$amount' } } }
+      ]),
+      Loan.find(),
+      OfficeTransaction.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalInvestment: { $sum: '$credit' },
+            totalExpenses: { $sum: '$debit' }
+          }
+        }
+      ])
+    ]);
+
+    const totalBankBalance = bankAccounts.reduce((sum, b) => sum + b.currentBalance, 0);
+    const cashInHand = cashAgg[0]?.balance || 0;
+    const totalLoanAmount = loans.reduce((sum, l) => sum + l.amount, 0);
+    const totalLoanRemainingBalance = loans.reduce((sum, l) => sum + l.currentBalance, 0);
+    
+    // Total Available Funds is unassigned money in banks, cash in hand, and remaining loan credit
+    const totalAvailableFunds = totalBankBalance + cashInHand + totalLoanRemainingBalance;
+
+    const totalProjectInvestment = officeTxnSummary[0]?.totalInvestment || 0;
+    const totalProjectExpenses = officeTxnSummary[0]?.totalExpenses || 0;
+    const projectRemainingBalance = totalProjectInvestment - totalProjectExpenses;
+
+    // Remaining Overall Balance = Unassigned Available Funds + Remaining Project Balances
+    const remainingOverallBalance = totalAvailableFunds + projectRemainingBalance;
+
+    res.json({
+      totalBankBalance,
+      cashInHand,
+      totalLoanAmount,
+      totalAvailableFunds,
+      totalProjectInvestment,
+      totalProjectExpenses,
+      remainingOverallBalance
+    });
+  } catch (err) {
+    res.status(500).json({ msg: 'Server error' });
+  }
+};

@@ -16,9 +16,13 @@ router.post('/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashed = await bcrypt.hash(password, salt);
 
-    // Only allow valid roles; default to 'admin' if not specified
-    const allowedRoles = ['admin', 'office'];
-    const assignedRole = allowedRoles.includes(role) ? role : 'admin';
+    if (role === 'admin') {
+      return res.status(400).json({ msg: 'Creating additional admin accounts is not allowed.' });
+    }
+
+    // Only allow valid roles; default to 'manager' if not specified
+    const allowedRoles = ['office', 'manager'];
+    const assignedRole = allowedRoles.includes(role) ? role : 'manager';
 
     user = new User({ name, email, password: hashed, role: assignedRole });
     await user.save();
