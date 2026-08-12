@@ -9,22 +9,12 @@ exports.getExpenses = async (req, res) => {
   try {
     const filter = {};
 
-    // Manager role restriction
-    if (req.userRole === 'manager') {
-      const assignedProjects = await OfficeProject.find({ manager: req.userId });
-      const projectIds = assignedProjects.map(p => p._id);
-      filter.project = { $in: projectIds };
-    }
+    // Managers can view all project expenses
 
     // Direct filter overrides
     if (req.query.project) {
       // If manager, check permission
-      if (req.userRole === 'manager') {
-        const proj = await OfficeProject.findById(req.query.project);
-        if (!proj || !proj.manager || proj.manager.toString() !== req.userId) {
-          return res.status(453).json({ msg: 'Access denied: not your assigned project' });
-        }
-      }
+      // Managers can filter by any project
       filter.project = req.query.project;
     }
 
@@ -65,9 +55,7 @@ exports.createExpense = async (req, res) => {
       return res.status(404).json({ msg: 'Project not found' });
     }
 
-    if (req.userRole === 'manager' && (!proj.manager || proj.manager.toString() !== req.userId)) {
-      return res.status(403).json({ msg: 'Access denied: not your assigned project' });
-    }
+    // Managers can log expenses for any project
 
     const expenseAmount = Number(amount);
 
@@ -206,9 +194,7 @@ exports.updateExpense = async (req, res) => {
     // Check project assignment for new project if changed
     const proj = await OfficeProject.findById(newProjectId);
     if (!proj) return res.status(404).json({ msg: 'Project not found' });
-    if (req.userRole === 'manager' && (!proj.manager || proj.manager.toString() !== req.userId)) {
-      return res.status(403).json({ msg: 'Access denied: not your assigned project' });
-    }
+    // Managers can log expenses for any project
 
     const newAmount = amount ? Number(amount) : oldAmount;
 

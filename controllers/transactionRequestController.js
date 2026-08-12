@@ -17,10 +17,7 @@ exports.createRequest = async (req, res) => {
       return res.status(404).json({ msg: 'Project not found' });
     }
 
-    // If manager, verify they are assigned to this project
-    if (req.userRole === 'manager' && (!proj.manager || proj.manager.toString() !== req.userId)) {
-      return res.status(403).json({ msg: 'Access denied: not your assigned project' });
-    }
+    // Managers can request funds for any project
 
     const request = new TransactionRequest({
       project,
@@ -48,9 +45,7 @@ exports.createRequest = async (req, res) => {
 exports.getRequests = async (req, res) => {
   try {
     const filter = {};
-    if (req.userRole === 'manager') {
-      filter.manager = req.userId;
-    } else if (req.query.project) {
+    if (req.query.project) {
       filter.project = req.query.project;
     }
 
@@ -105,9 +100,6 @@ const revertApproval = async (request) => {
     const loan = await Loan.findById(request.loan);
     if (loan) {
       loan.currentBalance += request.amount;
-      if (loan.status === 'Paid') {
-        loan.status = 'Unpaid';
-      }
       await loan.save();
     }
     await LoanTransaction.deleteOne({
@@ -190,7 +182,7 @@ const applyApproval = async (request, reqBody, reqUserId) => {
     if (!sourceId) throw new Error('Please select a Loan');
     const loan = await Loan.findById(sourceId);
     if (!loan) throw new Error('Loan not found');
-    if (loan.status === 'Paid') {
+    if (loan.status === 'Fully Paid') {
       throw new Error('Selected loan is already paid off');
     }
     if (loan.currentBalance < request.amount && !allowNegative) {

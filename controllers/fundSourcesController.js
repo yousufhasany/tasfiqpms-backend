@@ -64,12 +64,28 @@ exports.getLoans = async (req, res) => {
     const loans = await Loan.find().sort({ date: -1, createdAt: -1 });
 
     const totalAgg = await Loan.aggregate([
-      { $group: { _id: null, total: { $sum: '$amount' }, remaining: { $sum: '$currentBalance' } } }
+      { 
+        $group: { 
+          _id: null, 
+          total: { $sum: '$amount' }, 
+          remaining: { $sum: '$currentBalance' },
+          totalRemainingBalance: { $sum: '$remainingBalance' },
+          totalPaidAmount: { $sum: '$totalPaid' }
+        } 
+      }
     ]);
     const totalLoanAmount = totalAgg[0]?.total || 0;
     const remainingLoanBalance = totalAgg[0]?.remaining || 0;
+    const totalRemainingBalance = totalAgg[0]?.totalRemainingBalance || 0;
+    const totalPaidAmount = totalAgg[0]?.totalPaidAmount || 0;
 
-    res.json({ loans, totalLoanAmount, remainingLoanBalance });
+    res.json({ 
+      loans, 
+      totalLoanAmount, 
+      remainingLoanBalance, 
+      totalRemainingBalance, 
+      totalPaidAmount 
+    });
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });
   }
@@ -87,6 +103,8 @@ exports.createLoan = async (req, res) => {
       lenderName: lenderName.trim(),
       amount: Number(amount),
       currentBalance: Number(amount),
+      remainingBalance: Number(amount),
+      totalPaid: 0,
       date: date ? new Date(date) : new Date(),
       description: description.trim(),
       status: 'Unpaid'
@@ -116,10 +134,40 @@ exports.toggleLoanStatus = async (req, res) => {
     const loan = await Loan.findById(req.params.id);
     if (!loan) return res.status(404).json({ msg: 'Loan not found' });
 
-    const newStatus = loan.status === 'Paid' ? 'Unpaid' : 'Paid';
-    loan.status = newStatus;
-    await loan.save();
+    if (loan.status === 'Fully Paid') {
+      loan.status = 'Unpaid';
+      loan.totalPaid = 0;
+      loan.remainingBalance = loan.amount;
+      loan.repayments = [];
 
+      // Clean up previous repayment transactions for this loan
+      await LoanTransaction.deleteMany({ loan: loan._id, type: 'repayment' });
+    } else {
+      const repayAmount = loan.remainingBalance;
+      if (repayAmount > 0) {
+        loan.repayments.push({
+          amount: repayAmount,
+          date: new Date(),
+          paymentMethod: 'Cash',
+          notes: 'Status manually toggled to Paid'
+        });
+
+        await LoanTransaction.create({
+          loan: loan._id,
+          amount: repayAmount,
+          date: new Date(),
+          description: 'Repayment via Cash - Status manually toggled to Paid',
+          type: 'repayment',
+          createdBy: req.userId || null
+        });
+
+        loan.totalPaid = loan.amount;
+        loan.remainingBalance = 0;
+      }
+      loan.status = 'Fully Paid';
+    }
+
+    await loan.save();
     res.json(loan);
   } catch (err) {
     res.status(400).json({ msg: err.message });
@@ -185,7 +233,7 @@ exports.deleteCashTransaction = async (req, res) => {
 // Edit a loan
 exports.updateLoan = async (req, res) => {
   try {
-    const { lenderName, amount, date, description, status } = req.body;
+    const { lenderName, amount, date, description } = req.body;
     const loan = await Loan.findById(req.params.id);
     if (!loan) return res.status(404).json({ msg: 'Loan not found' });
 
@@ -198,12 +246,26 @@ exports.updateLoan = async (req, res) => {
       return res.status(400).json({ msg: `Cannot reduce loan amount below currently used funds: ৳${drawnBudget}` });
     }
 
+    if (newAmount < loan.totalPaid) {
+      return res.status(400).json({ msg: `Cannot reduce loan amount below the amount already repaid: ৳${loan.totalPaid}` });
+    }
+
     loan.lenderName = lenderName ? lenderName.trim() : loan.lenderName;
     loan.amount = newAmount;
     loan.currentBalance = newAmount - drawnBudget;
+    loan.remainingBalance = newAmount - loan.totalPaid;
+    
+    // Recalculate status based on repayments
+    if (loan.remainingBalance === 0) {
+      loan.status = 'Fully Paid';
+    } else if (loan.totalPaid > 0) {
+      loan.status = 'Partially Paid';
+    } else {
+      loan.status = 'Unpaid';
+    }
+
     if (date) loan.date = new Date(date);
     if (description) loan.description = description.trim();
-    if (status) loan.status = status;
 
     await loan.save();
 
@@ -322,3 +384,60 @@ exports.deleteLoanTransaction = async (req, res) => {
     res.status(500).json({ msg: 'Server error' });
   }
 };
+
+// Record a loan repayment
+exports.repayLoan = async (req, res) => {
+  try {
+    const { amount, date, paymentMethod, notes } = req.body;
+    if (!amount || !paymentMethod) {
+      return res.status(400).json({ msg: 'Please provide Repayment Amount and Payment Method' });
+    }
+
+    const loan = await Loan.findById(req.params.id);
+    if (!loan) return res.status(404).json({ msg: 'Loan not found' });
+
+    const repaymentAmount = Number(amount);
+    if (isNaN(repaymentAmount) || repaymentAmount <= 0) {
+      return res.status(400).json({ msg: 'Repayment amount must be a positive number' });
+    }
+
+    if (repaymentAmount > loan.remainingBalance) {
+      return res.status(400).json({ msg: `Repayment amount (৳${repaymentAmount}) cannot exceed the remaining balance (৳${loan.remainingBalance})` });
+    }
+
+    // Append the repayment
+    loan.repayments.push({
+      amount: repaymentAmount,
+      date: date ? new Date(date) : new Date(),
+      paymentMethod,
+      notes: notes ? notes.trim() : ''
+    });
+
+    // Update totals and status
+    loan.totalPaid += repaymentAmount;
+    loan.remainingBalance = loan.amount - loan.totalPaid;
+
+    if (loan.remainingBalance === 0) {
+      loan.status = 'Fully Paid';
+    } else {
+      loan.status = 'Partially Paid';
+    }
+
+    await loan.save();
+
+    // Log the transaction in LoanTransaction
+    await LoanTransaction.create({
+      loan: loan._id,
+      amount: repaymentAmount,
+      date: date ? new Date(date) : new Date(),
+      description: `Repayment via ${paymentMethod}${notes ? ' - ' + notes.trim() : ''}`,
+      type: 'repayment',
+      createdBy: req.userId || null
+    });
+
+    res.json(loan);
+  } catch (err) {
+    res.status(400).json({ msg: err.message });
+  }
+};
+

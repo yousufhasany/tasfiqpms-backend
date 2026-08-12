@@ -72,18 +72,6 @@ const OfficeTransaction = require('../models/OfficeTransaction');
 
 // Helper to enforce manager project boundaries
 async function getProjectFilter(req) {
-  if (req.userRole === 'manager') {
-    const projects = await OfficeProject.find({ manager: req.userId });
-    const projectIds = projects.map(p => p._id);
-    if (req.query.project) {
-      if (!projectIds.some(id => id.toString() === req.query.project)) {
-        throw new Error('Access denied: not your assigned project');
-      }
-      return { project: req.query.project };
-    }
-    return { project: { $in: projectIds } };
-  }
-  
   if (req.query.project) {
     return { project: req.query.project };
   }
@@ -119,10 +107,7 @@ router.get('/office/bank', auth, async (req, res) => {
 // 2. Cash Transactions Report
 router.get('/office/cash', auth, async (req, res) => {
   try {
-    // Cash is only visible to Admin or Office role
-    if (req.userRole === 'manager') {
-      return res.status(403).json({ msg: 'Access denied: Admin/Office only' });
-    }
+    // Cash report is visible to Manager 1
     
     const filter = {};
     if (req.query.startDate || req.query.endDate) {
@@ -141,10 +126,7 @@ router.get('/office/cash', auth, async (req, res) => {
 // 3. Loan Transactions Report
 router.get('/office/loans', auth, async (req, res) => {
   try {
-    // Loans are only visible to Admin or Office role
-    if (req.userRole === 'manager') {
-      return res.status(403).json({ msg: 'Access denied: Admin/Office only' });
-    }
+    // Loans report is visible to Manager 1
 
     const filter = {};
     if (req.query.loan) {
@@ -220,15 +202,7 @@ router.get('/office/project-summary', auth, async (req, res) => {
     const mongoose = require('mongoose');
     let projectIds = [];
     
-    if (req.userRole === 'manager') {
-      const projects = await OfficeProject.find({ manager: req.userId });
-      projectIds = projects.map(p => p._id);
-      if (req.query.project) {
-        const hasProj = projectIds.some(id => id.toString() === req.query.project);
-        if (!hasProj) return res.status(403).json({ msg: 'Access denied' });
-        projectIds = [new mongoose.Types.ObjectId(req.query.project)];
-      }
-    } else if (req.query.project) {
+    if (req.query.project) {
       projectIds = [new mongoose.Types.ObjectId(req.query.project)];
     } else {
       const projects = await OfficeProject.find();

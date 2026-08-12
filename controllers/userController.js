@@ -98,3 +98,120 @@ exports.deleteManager = async (req, res) => {
     res.status(500).json({ msg: 'Server error' });
   }
 };
+
+// Get all users
+exports.getUsers = async (req, res) => {
+  try {
+    const users = await User.find().select('-password').sort({ createdAt: -1 });
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
+
+// Update user password
+exports.updateUserPassword = async (req, res) => {
+  const { password } = req.body;
+  if (!password || password.trim().length < 6) {
+    return res.status(400).json({ msg: 'Password must be at least 6 characters long' });
+  }
+
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ msg: 'User not found' });
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(password, salt);
+    await user.save();
+
+    res.json({ msg: 'Password updated successfully' });
+  } catch (err) {
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
+
+// Update user status
+exports.updateUserStatus = async (req, res) => {
+  const { status } = req.body;
+  if (!status || !['active', 'disabled'].includes(status)) {
+    return res.status(400).json({ msg: 'Invalid status value' });
+  }
+
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ msg: 'User not found' });
+
+    // Protect main admin
+    if (user.email === 'tasfiqalam121@gmail.com') {
+      return res.status(400).json({ msg: 'Main Admin account status cannot be modified' });
+    }
+
+    user.status = status;
+    await user.save();
+
+    res.json({ msg: `User account is now ${status}`, user: { _id: user._id, status: user.status } });
+  } catch (err) {
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
+
+// Update user role
+exports.updateUserRole = async (req, res) => {
+  const { role } = req.body;
+
+  // Protect against changing own role
+  if (req.params.id === req.userId) {
+    return res.status(400).json({ msg: 'You are not allowed to change your own role.' });
+  }
+
+  // Protect against assigning Admin/Admin2 roles
+  const normalizedRole = (role || '').toLowerCase();
+  if (normalizedRole === 'admin' || normalizedRole === 'admin2') {
+    return res.status(400).json({ msg: 'Creating additional Admin/Admin2 accounts is not allowed.' });
+  }
+
+  const allowedRoles = ['admin', 'office', 'manager', 'finance_manager', 'Admin', 'Manager', 'Admin2'];
+  if (!role || !allowedRoles.includes(role)) {
+    return res.status(400).json({ msg: 'Invalid role value' });
+  }
+
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ msg: 'User not found' });
+
+    // Protect main admin
+    if (user.email === 'tasfiqalam121@gmail.com' || user.username === 'Alam') {
+      return res.status(400).json({ msg: 'Main Admin account role cannot be demoted' });
+    }
+
+    user.role = role;
+    await user.save();
+
+    res.json({ msg: 'User role updated successfully', user: { _id: user._id, role: user.role } });
+  } catch (err) {
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
+
+// Delete user
+exports.deleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ msg: 'User not found' });
+
+    // Protect main admin
+    if (user.email === 'tasfiqalam121@gmail.com') {
+      return res.status(400).json({ msg: 'Main Admin account cannot be deleted' });
+    }
+
+    // Cascade: if role is manager, unassign from projects
+    if (user.role === 'manager') {
+      await OfficeProject.updateMany({ manager: user._id }, { $set: { manager: null } });
+    }
+
+    await user.deleteOne();
+    res.json({ msg: 'User deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ msg: 'Server error' });
+  }
+};

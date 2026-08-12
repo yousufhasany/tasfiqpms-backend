@@ -72,10 +72,35 @@ const seed = async () => {
   if (!existingUser) {
     const salt = await bcrypt.genSalt(10);
     const hashed = await bcrypt.hash('tasfiqalam121', salt);
-    await User.create({ name: 'Admin', email: 'tasfiqalam121@gmail.com', password: hashed, role: 'admin' });
+    await User.create({ name: 'Admin', username: 'tasfiqalam121', email: 'tasfiqalam121@gmail.com', password: hashed, role: 'admin' });
     console.log('Admin user: tasfiqalam121@gmail.com / tasfiqalam121');
   }
   await User.deleteMany({ role: 'admin', email: { $ne: 'tasfiqalam121@gmail.com' } });
+
+  // Seed the 3 requested accounts
+  const seedUsers = [
+    { name: 'Alam', username: 'Alam', email: 'alam@example.com', password: 'Am@2026', role: 'Admin' },
+    { name: 'Yeasinmia24', username: 'Yeasinmia24', email: 'yeasinmia24@example.com', password: '01626757272@Y', role: 'Manager' },
+    { name: 'Sihab', username: 'Sihab', email: 'sihab@example.com', password: 'greenpac@2026', role: 'Admin2' }
+  ];
+
+  for (const u of seedUsers) {
+    const salt = await bcrypt.genSalt(10);
+    const hashed = await bcrypt.hash(u.password, salt);
+    
+    await User.findOneAndUpdate(
+      { username: u.username },
+      {
+        name: u.name,
+        email: u.email,
+        password: hashed,
+        role: u.role,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`Seeded/Updated user: ${u.username} with role: ${u.role}`);
+  }
 
   console.log('Seed complete');
   process.exit(0);

@@ -56,6 +56,7 @@ app.use('/api/bank-accounts', require('./routes/bankAccounts'));
 app.use('/api/fund-sources', require('./routes/fundSources'));
 app.use('/api/project-expenses', require('./routes/projectExpenses'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/finance', require('./routes/finance'));
 
 
 app.use((err, req, res, next) => {
