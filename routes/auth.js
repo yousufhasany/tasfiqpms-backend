@@ -4,9 +4,10 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const auth = require('../middleware/auth');
+const { requireRole } = require('../middleware/auth');
 
-// POST /api/auth/register
-router.post('/register', async (req, res) => {
+// POST /api/auth/register (restricted to Admins only)
+router.post('/register', auth, requireRole('admin'), async (req, res) => {
   const { name, email, password, role } = req.body;
   if (!email || !password) return res.status(400).json({ msg: 'Please provide email and password' });
   try {

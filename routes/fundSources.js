@@ -6,13 +6,13 @@ const ctrl = require('../controllers/fundSourcesController');
 
 // Cash routes
 router.get('/cash', auth, requireRole('admin', 'office', 'finance_manager', 'manager'), ctrl.getCashTransactions);
-router.post('/cash', auth, requireRole('admin', 'manager'), ctrl.createCashTransaction);
+router.post('/cash', auth, requireRole('admin', 'manager', 'finance_manager'), ctrl.createCashTransaction);
 router.put('/cash/:id', auth, requireRole('admin'), ctrl.updateCashTransaction);
 router.delete('/cash/:id', auth, requireRole('admin'), ctrl.deleteCashTransaction);
 
 // Loan routes
 router.get('/loans', auth, requireRole('admin', 'office', 'finance_manager', 'manager'), ctrl.getLoans);
-router.post('/loans', auth, requireRole('admin', 'manager'), ctrl.createLoan);
+router.post('/loans', auth, requireRole('admin', 'manager', 'finance_manager'), ctrl.createLoan);
 router.put('/loans/:id/status', auth, requireRole('admin'), ctrl.toggleLoanStatus);
 router.post('/loans/:id/repay', auth, requireRole('admin'), ctrl.repayLoan);
 router.put('/loans/:id', auth, requireRole('admin'), ctrl.updateLoan);
