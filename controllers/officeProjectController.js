@@ -5,9 +5,13 @@ const BankTransaction = require('../models/BankTransaction');
 // GET /api/office-projects
 exports.getAll = async (req, res) => {
   try {
-    // All authenticated users can view all projects
+    // All authenticated users can view projects, but manager role is filtered to assigned projects only
+    const filter = {};
+    if (req.userRole === 'manager') {
+      filter.manager = req.userId;
+    }
 
-    const projects = await OfficeProject.find({})
+    const projects = await OfficeProject.find(filter)
       .populate('createdBy', 'name email')
       .populate('manager', 'name email')
       .sort({ createdAt: -1 });
@@ -77,7 +81,12 @@ exports.getOne = async (req, res) => {
       .populate('updates.updatedBy', 'name email');
     if (!project) return res.status(404).json({ msg: 'Project not found' });
     
-    // All authenticated users can view project details
+    // Check project manager role assignment boundary
+    if (req.userRole === 'manager') {
+      if (!project.manager || project.manager._id.toString() !== req.userId.toString()) {
+        return res.status(403).json({ msg: 'Access denied: not assigned to this project' });
+      }
+    }
     
     res.json(project);
   } catch (err) {
@@ -161,7 +170,12 @@ exports.addUpdate = async (req, res) => {
     const project = await OfficeProject.findById(req.params.id);
     if (!project) return res.status(404).json({ msg: 'Project not found' });
 
-    // All authenticated users can add project updates
+    // Ensure manager role can only add updates to their assigned project
+    if (req.userRole === 'manager') {
+      if (!project.manager || project.manager.toString() !== req.userId.toString()) {
+        return res.status(403).json({ msg: 'Access denied: not assigned to this project' });
+      }
+    }
 
     const updateProgress = progress !== undefined ? Math.min(Math.max(Number(progress), 0), 100) : project.progress;
     

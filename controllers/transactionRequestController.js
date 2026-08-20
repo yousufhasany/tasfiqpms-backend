@@ -17,7 +17,12 @@ exports.createRequest = async (req, res) => {
       return res.status(404).json({ msg: 'Project not found' });
     }
 
-    // Managers can request funds for any project
+    // Ensure manager role can only request funds for their assigned project
+    if (req.userRole === 'manager') {
+      if (!proj.manager || proj.manager.toString() !== req.userId.toString()) {
+        return res.status(403).json({ msg: 'Access denied: not assigned to this project' });
+      }
+    }
 
     const request = new TransactionRequest({
       project,
@@ -45,7 +50,19 @@ exports.createRequest = async (req, res) => {
 exports.getRequests = async (req, res) => {
   try {
     const filter = {};
-    if (req.query.project) {
+    if (req.userRole === 'manager') {
+      const assignedProjects = await OfficeProject.find({ manager: req.userId }).select('_id');
+      const assignedProjectIds = assignedProjects.map(p => p._id);
+      
+      if (req.query.project) {
+        if (!assignedProjectIds.map(id => id.toString()).includes(req.query.project.toString())) {
+          return res.status(403).json({ msg: 'Access denied: not assigned to this project' });
+        }
+        filter.project = req.query.project;
+      } else {
+        filter.project = { $in: assignedProjectIds };
+      }
+    } else if (req.query.project) {
       filter.project = req.query.project;
     }
 

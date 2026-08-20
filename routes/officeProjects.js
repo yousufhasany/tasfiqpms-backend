@@ -9,7 +9,7 @@ router.get('/', auth, ctrl.getAll);
 router.get('/:id', auth, ctrl.getOne);
 
 // Admin-only CRUD actions
-router.post('/', auth, requireRole('admin', 'manager'), ctrl.create);
+router.post('/', auth, requireRole('admin'), ctrl.create);
 router.put('/:id', auth, requireRole('admin'), ctrl.update);
 router.delete('/:id', auth, requireRole('admin'), ctrl.remove);
 

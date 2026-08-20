@@ -9,12 +9,20 @@ exports.getExpenses = async (req, res) => {
   try {
     const filter = {};
 
-    // Managers can view all project expenses
-
-    // Direct filter overrides
-    if (req.query.project) {
-      // If manager, check permission
-      // Managers can filter by any project
+    // Managers can only view expenses for their assigned projects
+    if (req.userRole === 'manager') {
+      const assignedProjects = await OfficeProject.find({ manager: req.userId }).select('_id');
+      const assignedProjectIds = assignedProjects.map(p => p._id);
+      
+      if (req.query.project) {
+        if (!assignedProjectIds.map(id => id.toString()).includes(req.query.project.toString())) {
+          return res.status(403).json({ msg: 'Access denied: not assigned to this project' });
+        }
+        filter.project = req.query.project;
+      } else {
+        filter.project = { $in: assignedProjectIds };
+      }
+    } else if (req.query.project) {
       filter.project = req.query.project;
     }
 
@@ -55,7 +63,12 @@ exports.createExpense = async (req, res) => {
       return res.status(404).json({ msg: 'Project not found' });
     }
 
-    // Managers can log expenses for any project
+    // Ensure manager role can only log expenses for their assigned project
+    if (req.userRole === 'manager') {
+      if (!proj.manager || proj.manager.toString() !== req.userId.toString()) {
+        return res.status(403).json({ msg: 'Access denied: not assigned to this project' });
+      }
+    }
 
     const expenseAmount = Number(amount);
 

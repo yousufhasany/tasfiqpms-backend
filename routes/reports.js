@@ -72,10 +72,23 @@ const OfficeTransaction = require('../models/OfficeTransaction');
 
 // Helper to enforce manager project boundaries
 async function getProjectFilter(req) {
-  if (req.query.project) {
-    return { project: req.query.project };
+  const filter = {};
+  if (req.userRole === 'manager') {
+    const assignedProjects = await OfficeProject.find({ manager: req.userId }).select('_id');
+    const assignedProjectIds = assignedProjects.map(p => p._id);
+    if (req.query.project) {
+      if (assignedProjectIds.map(id => id.toString()).includes(req.query.project.toString())) {
+        filter.project = req.query.project;
+      } else {
+        filter.project = { $in: [] }; // force empty results
+      }
+    } else {
+      filter.project = { $in: assignedProjectIds };
+    }
+  } else if (req.query.project) {
+    filter.project = req.query.project;
   }
-  return {};
+  return filter;
 }
 
 // 1. Bank Transactions Report
@@ -202,10 +215,20 @@ router.get('/office/project-summary', auth, async (req, res) => {
     const mongoose = require('mongoose');
     let projectIds = [];
     
+    const filter = {};
+    if (req.userRole === 'manager') {
+      filter.manager = req.userId;
+    }
+
     if (req.query.project) {
-      projectIds = [new mongoose.Types.ObjectId(req.query.project)];
+      const proj = await OfficeProject.findById(req.query.project);
+      if (proj && (!filter.manager || proj.manager.toString() === req.userId.toString())) {
+        projectIds = [new mongoose.Types.ObjectId(req.query.project)];
+      } else {
+        projectIds = [];
+      }
     } else {
-      const projects = await OfficeProject.find();
+      const projects = await OfficeProject.find(filter);
       projectIds = projects.map(p => p._id);
     }
 
