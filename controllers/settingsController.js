@@ -6,7 +6,7 @@ exports.getSettings = async (req, res) => {
     // findOne or create the singleton
     let settings = await Settings.findOne();
     if (!settings) {
-      settings = await Settings.create({ propertyName: 'Warehouse Rental' });
+      settings = await Settings.create({ propertyName: 'Management system' });
     }
     res.json(settings);
   } catch (err) {

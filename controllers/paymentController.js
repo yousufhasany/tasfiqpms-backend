@@ -1,5 +1,6 @@
 const Payment = require('../models/Payment');
 const Property = require('../models/Property');
+const { syncRentPayment, removeRentPayment } = require('../services/familyLedger');
 
 const PAYMENT_SORT = { paymentDate: -1, createdAt: -1 };
 
@@ -37,6 +38,10 @@ exports.createPayment = async (req, res) => {
       notes: notes || ''
     });
 
+    try { await syncRentPayment(payment); } catch (ledgerErr) {
+      console.error('Family rent credit failed:', ledgerErr.message);
+    }
+
     const populated = await Payment.findById(payment._id).populate('tenant property');
     res.status(201).json(populated);
   } catch (err) {
@@ -56,6 +61,9 @@ exports.updatePayment = async (req, res) => {
     if (notes !== undefined) payment.notes = notes;
 
     await payment.save();
+    try { await syncRentPayment(payment); } catch (ledgerErr) {
+      console.error('Family rent credit failed:', ledgerErr.message);
+    }
     const populated = await Payment.findById(payment._id).populate('tenant property');
     res.json(populated);
   } catch (err) {
@@ -68,6 +76,9 @@ exports.deletePayment = async (req, res) => {
     const payment = await Payment.findById(req.params.id);
     if (!payment) return res.status(404).json({ msg: 'Payment not found' });
     await payment.deleteOne();
+    try { await removeRentPayment(payment._id); } catch (ledgerErr) {
+      console.error('Family rent removal failed:', ledgerErr.message);
+    }
     res.json({ msg: 'Payment deleted' });
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });

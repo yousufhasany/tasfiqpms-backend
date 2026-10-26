@@ -23,11 +23,19 @@ exports.getProperties = async (req, res) => {
 
     const currentYearMonth = new Date().toISOString().slice(0, 7);
     const paymentsThisMonth = await Payment.find({ rentMonth: currentYearMonth });
-    const paidPropertyIds = new Set(paymentsThisMonth.map(p => p.property.toString()));
+    const paidByProperty = new Map();
+    for (const payment of paymentsThisMonth) {
+      const id = payment.property.toString();
+      paidByProperty.set(id, (paidByProperty.get(id) || 0) + Number(payment.amount || 0));
+    }
 
     let result = properties.map(p => {
       const obj = p.toObject();
-      if (obj.status === 'Rented' && !paidPropertyIds.has(obj._id.toString())) {
+      const paid = paidByProperty.get(obj._id.toString()) || 0;
+      obj.unpaidAmount = obj.status === 'Available'
+        ? 0
+        : Math.max(0, Number(obj.monthlyRent || 0) - paid);
+      if (obj.status === 'Rented' && obj.unpaidAmount > 0) {
         obj.status = 'Unpaid';
       }
       return obj;
