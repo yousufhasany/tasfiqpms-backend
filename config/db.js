@@ -13,49 +13,25 @@ const connectDB = async () => {
     throw new Error('MONGO_URI must be set to your MongoDB Atlas connection string');
   }
 
-  if (cached.conn) {
+  if (cached.conn && mongoose.connection.readyState === 1) {
     return cached.conn;
   }
 
   if (!cached.promise) {
     cached.promise = mongoose.connect(uri, {
       bufferCommands: false
-    }).then(async (mongooseInstance) => {
+    }).then((mongooseInstance) => {
       console.log('MongoDB Atlas connected');
-      try {
-        // Load the User model to ensure its schema is compiled and registered
-        const User = require('../models/User');
-        const bcrypt = require('bcryptjs');
-        const adminEmail = 'tasfiqalam121@gmail.com';
-        const adminPass = 'tasfiqalam121';
-
-        let admin = await User.findOne({ email: adminEmail });
-        if (!admin) {
-          const salt = await bcrypt.genSalt(10);
-          const hashed = await bcrypt.hash(adminPass, salt);
-          admin = new User({
-            name: 'Tasfiq Admin',
-            email: adminEmail,
-            password: hashed,
-            role: 'admin'
-          });
-          await admin.save();
-          console.log('Seeded Admin user: tasfiqalam121@gmail.com');
-        }
-
-        const deleteRes = await User.deleteMany({ role: 'admin', email: { $ne: adminEmail } });
-        if (deleteRes.deletedCount > 0) {
-          console.log(`Deleted ${deleteRes.deletedCount} duplicate/legacy admin accounts.`);
-        }
-      } catch (err) {
-        console.error('Error seeding admin user:', err.message);
-      }
+      cached.conn = mongooseInstance;
       return mongooseInstance;
+    }).catch((err) => {
+      cached.promise = null;
+      cached.conn = null;
+      throw err;
     });
   }
 
-  cached.conn = await cached.promise;
-  return cached.conn;
+  return cached.promise;
 };
 
 module.exports = connectDB;

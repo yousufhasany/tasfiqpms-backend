@@ -4,6 +4,12 @@ const { syncRentPayment, removeRentPayment } = require('../services/familyLedger
 
 const PAYMENT_SORT = { paymentDate: -1, createdAt: -1 };
 
+function normalizeRentMonth(value) {
+  const match = String(value || '').trim().match(/^(\d{4})-(\d{1,2})/);
+  if (!match) return '';
+  return `${match[1]}-${match[2].padStart(2, '0')}`;
+}
+
 exports.getPayments = async (req, res) => {
   try {
     const filter = {};
@@ -29,12 +35,18 @@ exports.createPayment = async (req, res) => {
       return res.status(400).json({ msg: 'Can only collect rent for rented properties' });
     }
 
+    const month = normalizeRentMonth(rentMonth) || new Date().toISOString().slice(0, 7);
+    const already = await Payment.find({ property }).select('rentMonth');
+    if (already.some(item => normalizeRentMonth(item.rentMonth) === month)) {
+      return res.status(400).json({ msg: 'That month is already collected. Nothing else was posted.' });
+    }
+
     const payment = await Payment.create({
       property,
       tenant,
       amount: Number(amount),
       paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
-      rentMonth: rentMonth || new Date().toISOString().slice(0, 7),
+      rentMonth: month,
       notes: notes || ''
     });
 

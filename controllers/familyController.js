@@ -2,6 +2,19 @@ const FamilyMember = require('../models/FamilyMember');
 const FamilyTransaction = require('../models/FamilyTransaction');
 const { snapshot, balancesFrom } = require('../services/familyLedger');
 
+function chosenDate(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return new Date();
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    return new Date();
+  }
+  return date;
+}
+
 function allowed(role) {
   const value = (role || '').toLowerCase();
   return value === 'admin' || value === 'manager';
@@ -109,7 +122,7 @@ exports.addMember = async (req, res) => {
         kind: 'opening',
         amount: starting,
         note: 'Starting money',
-        date: new Date()
+        date: chosenDate(req.body.date)
       });
     }
 
@@ -194,7 +207,7 @@ exports.deposit = async (req, res) => {
       kind: 'deposit',
       amount,
       note: (req.body.note || '').trim() || 'Deposit',
-      date: new Date()
+      date: chosenDate(req.body.date)
     });
 
     res.status(201).json(await snapshot());
@@ -223,7 +236,7 @@ exports.spend = async (req, res) => {
       kind: 'spend',
       amount,
       note: note || 'Spent',
-      date: new Date()
+      date: chosenDate(req.body.date)
     });
 
     res.status(201).json(await snapshot());
@@ -259,7 +272,7 @@ exports.transfer = async (req, res) => {
       kind: 'transfer',
       amount,
       note: note || `Sent to ${to.name}`,
-      date: new Date()
+      date: chosenDate(req.body.date)
     });
 
     res.status(201).json(await snapshot());
