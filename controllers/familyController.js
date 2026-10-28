@@ -116,12 +116,13 @@ exports.addMember = async (req, res) => {
     }
 
     const starting = Number(req.body.amount);
-    if (starting > 0) {
+    const note = (req.body.note || '').trim();
+    if (starting > 0 || note) {
       await FamilyTransaction.create({
         member: member._id,
         kind: 'opening',
-        amount: starting,
-        note: 'Starting money',
+        amount: starting > 0 ? starting : 0,
+        note: note || 'Starting money',
         date: chosenDate(req.body.date)
       });
     }
